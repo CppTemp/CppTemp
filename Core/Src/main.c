@@ -23,8 +23,11 @@
 /* USER CODE BEGIN Includes */
 #include "lcd16x2.h"
 #include "stdio.h"
-#include "dht11.h"
-
+#include "time.h"
+#include "string.h"
+#include "unistd.h"
+#include "DHT.h"
+#include "menu.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -33,11 +36,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-// definicja flagi przerwania dla przycisku PC8
-#define PC8_BUTTON_IT_FLAG GPIO_PIN_8
 
-// definicja flagi przerwania dla przycisku PC6
-#define PC6_BUTTON_IT_FLAG GPIO_PIN_6
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -46,7 +45,8 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
-TIM_HandleTypeDef htim6;
+RTC_HandleTypeDef hrtc;
+UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
 
@@ -55,81 +55,17 @@ TIM_HandleTypeDef htim6;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
-static void MX_TIM6_Init(void);
+static void MX_RTC_Init(void);
+static void MX_USART3_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
-void Set_Pin_Output(GPIO_TypeDef *GPIO, uint16_t GPIO_Pin)
-{
-	GPIO_InitTypeDef GPIO_InitStruct = {0};
-	GPIO_InitStruct.Pin = GPIO_Pin;
-	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-	HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
-}
-void Set_Pin_Input(GPIO_TypeDef *GPIO, uint16_t GPIO_Pin)
-{
-	GPIO_InitTypeDef GPIO_InitStruct = {0};
-	GPIO_InitStruct.Pin = GPIO_Pin;
-	GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-	GPIO_InitStruct.Pull = GPIO_NOPULL;
-	HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
-}
-void DHT11_Start (void)
-   {
-   	Set_Pin_Output (GPIOD, GPIO_PIN_11);  // set the pin as output
-   	HAL_GPIO_WritePin (GPIOD, GPIO_PIN_11, 0);   // pull the pin low
-   	HAL_Delay (18);   // wait for 18ms
-   	HAL_GPIO_WritePin (GPIOD, GPIO_PIN_11, 1);
-   	Set_Pin_Input(GPIOD, GPIO_PIN_11);    // set as input
-   }
-uint8_t Check_Response (void)
-{
-	uint8_t Response = 0;
-	HAL_Delay (40);
-	if (!(HAL_GPIO_ReadPin (GPIOD, GPIO_PIN_11)))
-	{
-		HAL_Delay (80);
-		if ((HAL_GPIO_ReadPin (GPIOD, GPIO_PIN_11))) Response = 1;
-		else Response = -1;
-	}
-	while ((HAL_GPIO_ReadPin (GPIOD, GPIO_PIN_11)));   // wait for the pin to go low
-
-	return Response;
-}
-uint8_t DHT11_Read (void)
-{
-	uint8_t i,j;
-	for (j=0;j<8;j++)
-	{
-		while (!(HAL_GPIO_ReadPin (GPIOD, GPIO_PIN_11)));   // wait for the pin to go high
-		HAL_Delay (40);   // wait for 40 us
-		if (!(HAL_GPIO_ReadPin (GPIOD, GPIO_PIN_11)))   // if the pin is low
-		{
-			i&= ~(1<<(7-j));   // write 0
-		}
-		else i|= (1<<(7-j));  // if the pin is high, write 1
-		while ((HAL_GPIO_ReadPin (GPIOD, GPIO_PIN_11)));  // wait for the pin to go low
-	}
-	return i;
-}
-
-void printTemp (float temp)
-{
-	char str[20] = {0};
-	sprintf(str, "TEMP:- %.2f ", temp);
-	lcd16x2_printf(str);
-}
-void printHum (float hum)
-{
-	char str[20] = {0};
-	sprintf(str, "HUM:- %.2f ", hum);
-	lcd16x2_printf(str);
-}
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+DHT_DataTypedef DHT11_Data;
+RTC_TimeTypeDef sTime = {0};
+RTC_DateTypeDef sDate = {0};
 /* USER CODE END 0 */
 
 /**
@@ -139,9 +75,14 @@ void printHum (float hum)
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-	DHT_t dht;
-	float t,h;
-	int stanP = 1;
+	const int numOfOptions = 5;
+	char currTime[30];
+	char currDate[30];
+	float Temperature;
+	float Humidity;
+	int state = 1;
+	int position = 0;
+	struct option options[numOfOptions];
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -150,7 +91,8 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-
+  lcd16x2_init_4bits(GPIOE, GPIO_PIN_7, GPIO_PIN_11, GPIOE, GPIO_PIN_12, GPIO_PIN_13, GPIO_PIN_14, GPIO_PIN_15);
+  initMenu(options);
   /* USER CODE END Init */
 
   /* Configure the system clock */
@@ -162,12 +104,9 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_TIM6_Init();
+  MX_RTC_Init();
+  MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
-  lcd16x2_init_4bits(GPIOE, GPIO_PIN_7, GPIO_PIN_11,
-  //      D0_GPIO_Port, D0_Pin, D1_Pin, D2_Pin, D3_Pin,
-        GPIOE, GPIO_PIN_12, GPIO_PIN_13, GPIO_PIN_14, GPIO_PIN_15);
-  DHT_init(&dht, DHT_Type_DHT11, &htim6, 72, GPIOD, GPIO_PIN_11);
 
   /* USER CODE END 2 */
 
@@ -178,44 +117,88 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  switch(stanP) {
-	  case 1:
-		  lcd16x2_clear();
-		  lcd16x2_printf("Check temperature");
-		  lcd16x2_2ndLine();
-		  lcd16x2_printf("Check date");
-		  HAL_Delay(2500);
-		  break;
-		  if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_8) != GPIO_PIN_SET)
-		  {
-			  stanP = 3;
-			  break;
-		  }
-		  else if (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_6) != GPIO_PIN_SET)
-		  {
-			  stanP = 2;
-			  break;
-		  }
-
-	  case 2:
-		  lcd16x2_clear();
-		  lcd16x2_printf("dupa");
-		  lcd16x2_2ndLine();
-		  lcd16x2_printf("dupa");
-		  HAL_Delay(2500);
-		  break;
-
-	  case 3:
-		  lcd16x2_clear();
-		  printTemp(t);
-		  lcd16x2_2ndLine();
-		  printHum(h);
-
-		  DHT_readData(&dht, &t, &h);
-		  HAL_Delay(2500);
+	switch(state)
+	{
+	  case 0: // Stan bezczyności
+	  {
+		  state = action(numOfOptions, &position);
 		  break;
 	  }
-
+	  case 1: // Wyświetlenie menu
+	  {
+		  lcd16x2_clear();
+		  show(numOfOptions, position, options);
+		  state = 0;
+		  break;
+	  }
+	  case 2: // Wyświetlenie temperatury oraz wilogtoności
+	  {
+		  lcd16x2_clear();
+		  DHT_GetData(&DHT11_Data);
+		  Temperature = DHT11_Data.Temperature;
+		  Humidity = DHT11_Data.Humidity;
+		  lcd16x2_printf("Temp: %.1f C",Temperature);
+		  lcd16x2_2ndLine();
+		  lcd16x2_printf("Humi: %.1f %%",Humidity);
+		  for(int i=0;i<20;i++)
+		  {
+			  if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_15) == 0)
+		  		{
+		  			state = 1;
+		  			break;
+		  		}
+			  HAL_Delay(50);
+		  }
+		  break;
+	  }
+	  case 3:
+	  {
+		  lcd16x2_clear();
+		  HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
+		  HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
+		  sprintf(currDate,"Date: %02d.%02d.%02d",sDate.Date,sDate.Month,sDate.Year);
+		  sprintf(currTime,"Time: %02d.%02d.%02d",sTime.Hours,sTime.Minutes,sTime.Seconds);
+		  lcd16x2_printf("%s",currDate);
+		  lcd16x2_2ndLine();
+		  lcd16x2_printf("%s",currTime);
+		  HAL_UART_Transmit(&huart3, (uint8_t *)currDate, sizeof(currDate), 300);
+		  HAL_UART_Transmit(&huart3, (uint8_t *)currTime, sizeof(currTime), 300);
+		  for(int i=0;i<20;i++)
+		  {
+			  if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_15) == 0)
+			  {
+				  state = 1;
+				  break;
+			  }
+			  HAL_Delay(50);
+		  }
+		  break;
+	  }
+	  case 4:
+	  {
+		  lcd16x2_clear();
+		  lcd16x2_printf("SET TIME");
+		  HAL_Delay(1000);
+		  state=1;
+		  break;
+	  }
+	  case 5:
+	  {
+		  lcd16x2_clear();
+		  lcd16x2_printf("ALARM");
+		  HAL_Delay(1000);
+		  state=1;
+		  break;
+	  }
+	  case 6:
+	  {
+		  lcd16x2_clear();
+		  lcd16x2_printf("HISTORY");
+		  HAL_Delay(1000);
+		  break;
+	  }
+    }
+	HAL_Delay(100);
   }
   /* USER CODE END 3 */
 }
@@ -237,10 +220,16 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_LSI;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
+  RCC_OscInitStruct.PLL.PLLM = 8;
+  RCC_OscInitStruct.PLL.PLLN = 72;
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
+  RCC_OscInitStruct.PLL.PLLQ = 4;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -250,53 +239,110 @@ void SystemClock_Config(void)
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
   {
     Error_Handler();
   }
 }
 
 /**
-  * @brief TIM6 Initialization Function
+  * @brief RTC Initialization Function
   * @param None
   * @retval None
   */
-static void MX_TIM6_Init(void)
+static void MX_RTC_Init(void)
 {
 
-  /* USER CODE BEGIN TIM6_Init 0 */
+  /* USER CODE BEGIN RTC_Init 0 */
 
-  /* USER CODE END TIM6_Init 0 */
+  /* USER CODE END RTC_Init 0 */
 
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
+  RTC_TimeTypeDef sTime = {0};
+  RTC_DateTypeDef sDate = {0};
 
-  /* USER CODE BEGIN TIM6_Init 1 */
+  /* USER CODE BEGIN RTC_Init 1 */
 
-  /* USER CODE END TIM6_Init 1 */
-  htim6.Instance = TIM6;
-  htim6.Init.Prescaler = 0;
-  htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim6.Init.Period = 65535;
-  htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim6) != HAL_OK)
+  /* USER CODE END RTC_Init 1 */
+
+  /** Initialize RTC Only
+  */
+  hrtc.Instance = RTC;
+  hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
+  hrtc.Init.AsynchPrediv = 127;
+  hrtc.Init.SynchPrediv = 255;
+  hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
+  hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
+  hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
+  if (HAL_RTC_Init(&hrtc) != HAL_OK)
   {
     Error_Handler();
   }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim6, &sMasterConfig) != HAL_OK)
+
+  /* USER CODE BEGIN Check_RTC_BKUP */
+
+  /* USER CODE END Check_RTC_BKUP */
+
+  /** Initialize RTC and set the Time and Date
+  */
+  sTime.Hours = 0x0;
+  sTime.Minutes = 0x0;
+  sTime.Seconds = 0x0;
+  sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
+  sTime.StoreOperation = RTC_STOREOPERATION_RESET;
+  if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN TIM6_Init 2 */
-  Set_Pin_Output(GPIOD, GPIO_PIN_12); // set LED pin as output
-  Set_Pin_Input(GPIOA, GPIO_PIN_0);   // set button pin as input
-  /* USER CODE END TIM6_Init 2 */
+  sDate.WeekDay = RTC_WEEKDAY_WEDNESDAY;
+  sDate.Month = RTC_MONTH_MAY;
+  sDate.Date = 0x9;
+  sDate.Year = 0x23;
+
+  if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN RTC_Init 2 */
+
+  /* USER CODE END RTC_Init 2 */
+
+}
+
+/**
+  * @brief USART3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART3_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART3_Init 0 */
+
+  /* USER CODE END USART3_Init 0 */
+
+  /* USER CODE BEGIN USART3_Init 1 */
+
+  /* USER CODE END USART3_Init 1 */
+  huart3.Instance = USART3;
+  huart3.Init.BaudRate = 115200;
+  huart3.Init.WordLength = UART_WORDLENGTH_8B;
+  huart3.Init.StopBits = UART_STOPBITS_1;
+  huart3.Init.Parity = UART_PARITY_NONE;
+  huart3.Init.Mode = UART_MODE_TX_RX;
+  huart3.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart3.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART3_Init 2 */
+
+  /* USER CODE END USART3_Init 2 */
 
 }
 
@@ -323,9 +369,6 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOE, GPIO_PIN_7|GPIO_PIN_10|GPIO_PIN_11|GPIO_PIN_12
                           |GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_11, GPIO_PIN_RESET);
-
   /*Configure GPIO pin : PB1 */
   GPIO_InitStruct.Pin = GPIO_PIN_1;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
@@ -343,15 +386,14 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin : PD11 */
   GPIO_InitStruct.Pin = GPIO_PIN_11;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PC6 PC8 PC9 PC11 */
   GPIO_InitStruct.Pin = GPIO_PIN_6|GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_11;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /*Configure GPIO pin : PA15 */
