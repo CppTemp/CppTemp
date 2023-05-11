@@ -15,8 +15,9 @@ struct option
 };
 
 void initMenu(struct option options[]);
-void show(int num, int pos, struct option options[] );
+void showMenu(int num, int pos, struct option options[] );
 void verifyPosition(int num, int *pos);
 int action(int num, int *pos);
+int checkIfBack(int currState);
 
 #endif /* SRC_MENU_H_ */

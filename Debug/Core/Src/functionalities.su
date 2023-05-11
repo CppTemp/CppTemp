@@ -1,0 +1,6 @@
+../Core/Src/functionalities.c:11:6:showTempAndHum	16	static
+../Core/Src/functionalities.c:18:6:showTimeAndDate	88	static
+../Core/Src/functionalities.c:29:6:showSettingUpTime	16	static
+../Core/Src/functionalities.c:38:6:setTime	40	static
+../Core/Src/functionalities.c:93:6:showSettingUpDate	16	static
+../Core/Src/functionalities.c:102:6:setDate	24	static

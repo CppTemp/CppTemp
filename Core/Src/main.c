@@ -28,6 +28,7 @@
 #include "unistd.h"
 #include "DHT.h"
 #include "menu.h"
+#include "functionalities.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -64,6 +65,8 @@ static void MX_USART3_UART_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 DHT_DataTypedef DHT11_Data;
+RTC_HandleTypeDef hrtc;
+UART_HandleTypeDef huart3;
 RTC_TimeTypeDef sTime = {0};
 RTC_DateTypeDef sDate = {0};
 /* USER CODE END 0 */
@@ -78,8 +81,8 @@ int main(void)
 	const int numOfOptions = 5;
 	char currTime[30];
 	char currDate[30];
-	float Temperature;
-	float Humidity;
+	float temperature;
+	float humidity;
 	int state = 1;
 	int position = 0;
 	struct option options[numOfOptions];
@@ -127,7 +130,7 @@ int main(void)
 	  case 1: // Wyświetlenie menu
 	  {
 		  lcd16x2_clear();
-		  show(numOfOptions, position, options);
+		  showMenu(numOfOptions, position, options);
 		  state = 0;
 		  break;
 	  }
@@ -135,20 +138,10 @@ int main(void)
 	  {
 		  lcd16x2_clear();
 		  DHT_GetData(&DHT11_Data);
-		  Temperature = DHT11_Data.Temperature;
-		  Humidity = DHT11_Data.Humidity;
-		  lcd16x2_printf("Temp: %.1f C",Temperature);
-		  lcd16x2_2ndLine();
-		  lcd16x2_printf("Humi: %.1f %%",Humidity);
-		  for(int i=0;i<20;i++)
-		  {
-			  if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_15) == 0)
-		  		{
-		  			state = 1;
-		  			break;
-		  		}
-			  HAL_Delay(50);
-		  }
+		  temperature = DHT11_Data.Temperature;
+		  humidity = DHT11_Data.Humidity;
+		  showTempAndHum(temperature, humidity);
+		  state = checkIfBack(state);
 		  break;
 	  }
 	  case 3:
@@ -156,37 +149,23 @@ int main(void)
 		  lcd16x2_clear();
 		  HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
 		  HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
-		  sprintf(currDate,"Date: %02d.%02d.%02d",sDate.Date,sDate.Month,sDate.Year);
-		  sprintf(currTime,"Time: %02d.%02d.%02d",sTime.Hours,sTime.Minutes,sTime.Seconds);
-		  lcd16x2_printf("%s",currDate);
-		  lcd16x2_2ndLine();
-		  lcd16x2_printf("%s",currTime);
+		  showTimeAndDate(sDate, sTime);
 		  HAL_UART_Transmit(&huart3, (uint8_t *)currDate, sizeof(currDate), 300);
 		  HAL_UART_Transmit(&huart3, (uint8_t *)currTime, sizeof(currTime), 300);
-		  for(int i=0;i<20;i++)
-		  {
-			  if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_15) == 0)
-			  {
-				  state = 1;
-				  break;
-			  }
-			  HAL_Delay(50);
-		  }
+		  state = checkIfBack(state);
 		  break;
 	  }
 	  case 4:
 	  {
 		  lcd16x2_clear();
-		  lcd16x2_printf("SET TIME");
-		  HAL_Delay(1000);
+		  setTime(&hrtc, &sTime);
 		  state=1;
 		  break;
 	  }
 	  case 5:
 	  {
 		  lcd16x2_clear();
-		  lcd16x2_printf("ALARM");
-		  HAL_Delay(1000);
+		  setDate(&hrtc, &sDate);
 		  state=1;
 		  break;
 	  }
@@ -195,7 +174,16 @@ int main(void)
 		  lcd16x2_clear();
 		  lcd16x2_printf("HISTORY");
 		  HAL_Delay(1000);
+		  state=1;
 		  break;
+	  }
+	  default:
+	  {
+	  		  lcd16x2_clear();
+	  		  lcd16x2_printf("NO FUNCTION");
+	  		  HAL_Delay(1000);
+	  		  state=1;
+	  		  break;
 	  }
     }
 	HAL_Delay(100);
@@ -300,7 +288,7 @@ static void MX_RTC_Init(void)
   }
   sDate.WeekDay = RTC_WEEKDAY_WEDNESDAY;
   sDate.Month = RTC_MONTH_MAY;
-  sDate.Date = 0x9;
+  sDate.Date = 0x12;
   sDate.Year = 0x23;
 
   if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD) != HAL_OK)

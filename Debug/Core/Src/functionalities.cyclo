@@ -1,0 +1,6 @@
+functionalities.c:11:6:showTempAndHum	1
+functionalities.c:18:6:showTimeAndDate	1
+functionalities.c:29:6:showSettingUpTime	1
+functionalities.c:38:6:setTime	19
+functionalities.c:93:6:showSettingUpDate	1
+functionalities.c:102:6:setDate	19

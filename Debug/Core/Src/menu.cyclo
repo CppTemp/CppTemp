@@ -1,4 +1,5 @@
 menu.c:6:6:initMenu	1
-menu.c:15:6:show	2
-menu.c:31:6:verifyPosition	3
-menu.c:39:5:action	4
+menu.c:15:5:checkIfBack	3
+menu.c:26:6:showMenu	2
+menu.c:42:6:verifyPosition	3
+menu.c:50:5:action	4
