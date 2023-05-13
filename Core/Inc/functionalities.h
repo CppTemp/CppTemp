@@ -14,5 +14,8 @@ void setTime(RTC_HandleTypeDef *hrtc, RTC_TimeTypeDef *sTime);
 void showSettingUpTime(int *pos, RTC_TimeTypeDef sTime);
 void setDate(RTC_HandleTypeDef *hrtc, RTC_DateTypeDef *sDate);
 void showSettingUpDate(int *pos, RTC_DateTypeDef sDate);
+void showAlarm(float temp, float hum, bool isSet);
+void setAlarm(float *temp, float *hum, bool *isSet);
+void showSettingUpAlarm(float temp, float hum, bool isSet);
 
 #endif /* INC_FUNCTIONALITIES_H_ */

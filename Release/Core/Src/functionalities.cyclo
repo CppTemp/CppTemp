@@ -1,0 +1,9 @@
+functionalities.c:11:6:showTempAndHum	1
+functionalities.c:19:6:showTimeAndDate	1
+functionalities.c:31:6:showSettingUpTime	1
+functionalities.c:40:6:setTime	15
+functionalities.c:95:6:showSettingUpDate	1
+functionalities.c:104:6:setDate	15
+functionalities.c:160:6:showAlarm	3
+functionalities.c:174:6:checkAlarm	2
+functionalities.c:186:6:setAlarm	15

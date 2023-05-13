@@ -10,6 +10,7 @@
 
 void showTempAndHum(float temp, float hum) // Pokaż temperaturę oraz wilgotność powietrza
 {
+	lcd16x2_clear();
 	lcd16x2_printf("Temp: %.1f C",temp);
 	lcd16x2_2ndLine();
 	lcd16x2_printf("Humi: %.1f %%",hum);
@@ -21,6 +22,7 @@ void showTimeAndDate(RTC_DateTypeDef sDate, RTC_TimeTypeDef sTime) // Pokaż cza
 	char currDate[30];
 	sprintf(currDate,"Date: %02d.%02d.%02d",sDate.Date,sDate.Month,sDate.Year);
 	sprintf(currTime,"Time: %02d:%02d:%02d",sTime.Hours,sTime.Minutes,sTime.Seconds);
+	lcd16x2_clear();
 	lcd16x2_printf("%s",currDate);
 	lcd16x2_2ndLine();
 	lcd16x2_printf("%s",currTime);
@@ -153,3 +155,93 @@ void setDate(RTC_HandleTypeDef *hrtc, RTC_DateTypeDef *sDate) // Ustawienie daty
 	}
 	HAL_RTC_SetDate(hrtc, sDate, RTC_FORMAT_BIN);
 }
+
+
+void showAlarm(float temp, float hum, bool isSet)
+{
+	lcd16x2_clear();
+	if(isSet)
+	{
+		lcd16x2_printf("Alarm is set");
+		lcd16x2_2ndLine();
+		lcd16x2_printf("T:%.1fC H:%.1f%%",temp,hum);
+	}
+	else lcd16x2_printf("Alarm is not set");
+
+	while(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_15) == 1);
+}
+
+void showSettingUpAlarm(float temp, float hum, bool isSet)
+{
+	lcd16x2_clear();
+	lcd16x2_printf("Alarm:");
+	if(isSet)
+		lcd16x2_printf("ENABLED");
+	else
+		lcd16x2_printf("DISABLED");
+	lcd16x2_2ndLine();
+	lcd16x2_printf("T:%.1fC H:%.1f%%",temp,hum);
+}
+
+void setAlarm(float *temp, float *hum, bool *isSet)
+{
+	showSettingUpAlarm(*temp, *hum, *isSet);
+	while(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_15) == 1)
+	{
+		if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_6) == 0 || HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_8) == 0)
+		{
+			if(*isSet) *isSet = false;
+			else *isSet = true;
+			showSettingUpAlarm(*temp, *hum, *isSet);
+		}
+		lcd16x2_setCursor(0,15);
+		lcd16x2_printf("<");
+		HAL_Delay(200);
+	}
+	HAL_Delay(200);
+
+	if(*isSet == false) return;
+
+	showSettingUpAlarm(*temp, *hum, *isSet);
+	while(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_15) == 1)
+	{
+		if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_6) == 0) //UP
+		{
+			if(*temp>=99) *temp=-99;
+			else *temp+=1;
+			showSettingUpAlarm(*temp, *hum, *isSet);
+		}
+		if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_8) == 0) //DOWN
+		{
+			if(*temp<=-99) *temp=99;
+			else *temp-=1;
+			showSettingUpAlarm(*temp, *hum, *isSet);
+		}
+		HAL_Delay(100);
+	}
+	HAL_Delay(200);
+
+	showSettingUpAlarm(*temp, *hum, *isSet);
+	while(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_15) == 1)
+	{
+		if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_6) == 0) //UP
+		{
+			if(*hum>=99) *hum=0;
+			else *hum+=1;
+			showSettingUpAlarm(*temp, *hum, *isSet);
+		}
+		if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_8) == 0) //DOWN
+		{
+			if(*hum<=0) *hum=99;
+			else *hum-=1;
+			showSettingUpAlarm(*temp, *hum, *isSet);
+		}
+		HAL_Delay(100);
+	}
+	HAL_Delay(200);
+}
+
+//void checkAlarm(float currTemp, float currHum, float alarmTemp, float alarmHum)
+//{
+//	if(currTemp >= alarmTemp || currHum >=)
+//}

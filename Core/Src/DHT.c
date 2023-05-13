@@ -122,7 +122,7 @@ uint8_t DHT_Check_Response (void)
 
 uint8_t DHT_Read (void)
 {
-	uint8_t i,j;
+	uint8_t i=0,j;
 	for (j=0;j<8;j++)
 	{
 		while (!(HAL_GPIO_ReadPin (DHT_PORT, DHT_PIN)));   // wait for the pin to go high

@@ -1,0 +1,9 @@
+../Core/Src/functionalities.c:11:6:showTempAndHum	16	static
+../Core/Src/functionalities.c:19:6:showTimeAndDate	88	static
+../Core/Src/functionalities.c:31:6:showSettingUpTime	8	static
+../Core/Src/functionalities.c:40:6:setTime	48	static
+../Core/Src/functionalities.c:95:6:showSettingUpDate	16	static
+../Core/Src/functionalities.c:104:6:setDate	32	static
+../Core/Src/functionalities.c:160:6:showAlarm	32	static
+../Core/Src/functionalities.c:174:6:checkAlarm	32	static
+../Core/Src/functionalities.c:186:6:setAlarm	32	static

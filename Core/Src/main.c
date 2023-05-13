@@ -37,7 +37,6 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -56,8 +55,8 @@ UART_HandleTypeDef huart3;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
-static void MX_RTC_Init(void);
 static void MX_USART3_UART_Init(void);
+static void MX_RTC_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -78,13 +77,14 @@ RTC_DateTypeDef sDate = {0};
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-	const int numOfOptions = 5;
+	const int numOfOptions = 8;
 	char currTime[30];
 	char currDate[30];
-	float temperature;
-	float humidity;
+	float alarmTemp = 0;
+	float alarmHum = 0;
 	int state = 1;
 	int position = 0;
+	bool alarmSet = false;
 	struct option options[numOfOptions];
   /* USER CODE END 1 */
 
@@ -107,8 +107,8 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_RTC_Init();
   MX_USART3_UART_Init();
+  MX_RTC_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
@@ -129,24 +129,19 @@ int main(void)
 	  }
 	  case 1: // Wyświetlenie menu
 	  {
-		  lcd16x2_clear();
 		  showMenu(numOfOptions, position, options);
 		  state = 0;
 		  break;
 	  }
 	  case 2: // Wyświetlenie temperatury oraz wilogtoności
 	  {
-		  lcd16x2_clear();
 		  DHT_GetData(&DHT11_Data);
-		  temperature = DHT11_Data.Temperature;
-		  humidity = DHT11_Data.Humidity;
-		  showTempAndHum(temperature, humidity);
+		  showTempAndHum(DHT11_Data.Temperature, DHT11_Data.Humidity);
 		  state = checkIfBack(state);
 		  break;
 	  }
-	  case 3:
+	  case 3: // Wyświetlenie czasu oraz daty
 	  {
-		  lcd16x2_clear();
 		  HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
 		  HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
 		  showTimeAndDate(sDate, sTime);
@@ -155,21 +150,39 @@ int main(void)
 		  state = checkIfBack(state);
 		  break;
 	  }
-	  case 4:
+	  case 4: // Wyświetlenie alarmu
 	  {
-		  lcd16x2_clear();
+		  showAlarm(alarmTemp, alarmHum, alarmSet);
+		  state=1;
+		  break;
+	  }
+	  case 5: // Ustawienie czasu
+	  {
 		  setTime(&hrtc, &sTime);
 		  state=1;
 		  break;
 	  }
-	  case 5:
+	  case 6: // Ustawienie daty
 	  {
-		  lcd16x2_clear();
 		  setDate(&hrtc, &sDate);
 		  state=1;
 		  break;
 	  }
-	  case 6:
+	  case 7: // Ustawienie alarmu
+	  {
+		  setAlarm(&alarmTemp, &alarmHum, &alarmSet);
+		  state=1;
+		  break;
+	  }
+	  case 8: // Wyświetlenie historii
+	  {
+		  lcd16x2_clear();
+		  lcd16x2_printf("HISTORY");
+		  HAL_Delay(1000);
+		  state=1;
+		  break;
+	  }
+	  case 9: // Wyczyszczenie historii
 	  {
 		  lcd16x2_clear();
 		  lcd16x2_printf("HISTORY");
@@ -286,10 +299,10 @@ static void MX_RTC_Init(void)
   {
     Error_Handler();
   }
-  sDate.WeekDay = RTC_WEEKDAY_WEDNESDAY;
-  sDate.Month = RTC_MONTH_MAY;
-  sDate.Date = 0x12;
-  sDate.Year = 0x23;
+  sDate.WeekDay = RTC_WEEKDAY_MONDAY;
+  sDate.Month = RTC_MONTH_JANUARY;
+  sDate.Date = 0x1;
+  sDate.Year = 0x0;
 
   if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD) != HAL_OK)
   {
@@ -347,7 +360,6 @@ static void MX_GPIO_Init(void)
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOH_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOE_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
@@ -356,12 +368,6 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOE, GPIO_PIN_7|GPIO_PIN_10|GPIO_PIN_11|GPIO_PIN_12
                           |GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin : PB1 */
-  GPIO_InitStruct.Pin = GPIO_PIN_1;
-  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PE7 PE10 PE11 PE12
                            PE13 PE14 PE15 */

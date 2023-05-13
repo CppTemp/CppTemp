@@ -1,0 +1,5 @@
+../Core/Src/menu.c:6:6:initMenu	8	static
+../Core/Src/menu.c:18:5:checkIfBack	16	static
+../Core/Src/menu.c:29:6:showMenu	24	static
+../Core/Src/menu.c:46:6:verifyPosition	0	static
+../Core/Src/menu.c:54:5:action	16	static
