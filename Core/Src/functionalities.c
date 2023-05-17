@@ -7,25 +7,30 @@
 #include "lcd16x2.h"
 #include "stdio.h"
 #include "stdbool.h"
+#include "DHT.h"
+#include "string.h"
+#include "functionalities.h"
 
-void showTempAndHum(float temp, float hum) // Pokaż temperaturę oraz wilgotność powietrza
+#define MIDDLE_BUTTON HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_15)
+#define DOWN_BUTTON HAL_GPIO_ReadPin(GPIOC,GPIO_PIN_8)
+#define UP_BUTTON HAL_GPIO_ReadPin(GPIOC,GPIO_PIN_6)
+#define PRESSED 0
+#define RELEASED 1
+
+void showTempAndHum(DHT_DataTypedef *DHT11_Data) // Pokaż temperaturę oraz wilgotność powietrza
 {
 	lcd16x2_clear();
-	lcd16x2_printf("Temp: %.1f C",temp);
+	lcd16x2_printf("Temp: %.1f C",DHT11_Data->Temperature);
 	lcd16x2_2ndLine();
-	lcd16x2_printf("Humi: %.1f %%",hum);
+	lcd16x2_printf("Humi: %.1f %%",DHT11_Data->Humidity);
 }
 
 void showTimeAndDate(RTC_DateTypeDef sDate, RTC_TimeTypeDef sTime) // Pokaż czas i datę
 {
-	char currTime[30];
-	char currDate[30];
-	sprintf(currDate,"Date: %02d.%02d.%02d",sDate.Date,sDate.Month,sDate.Year);
-	sprintf(currTime,"Time: %02d:%02d:%02d",sTime.Hours,sTime.Minutes,sTime.Seconds);
 	lcd16x2_clear();
-	lcd16x2_printf("%s",currDate);
+	lcd16x2_printf("Time: %02d:%02d:%02d",sTime.Hours,sTime.Minutes,sTime.Seconds);
 	lcd16x2_2ndLine();
-	lcd16x2_printf("%s",currTime);
+	lcd16x2_printf("Date: %02d.%02d.%02d",sDate.Date,sDate.Month,sDate.Year);
 }
 
 void showSettingUpTime(int *pos, RTC_TimeTypeDef sTime) // Wyświetlenie czasu przy edycji
@@ -45,9 +50,9 @@ void setTime(RTC_HandleTypeDef *hrtc, RTC_TimeTypeDef *sTime) // Ustawianie czas
 	{
 		showSettingUpTime(&position, *sTime);
 		HAL_Delay(500);
-		while(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_15) == 1) // Powtarzaj dopóki MIDDLE BUTTON nie zostanie naciśnięty
+		while(MIDDLE_BUTTON == RELEASED)
 		{
-			if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_6) == 0) // Jeśli wciśnięty UP BUTTON
+			if(UP_BUTTON == PRESSED)
 			{
 				switch(i) // Obsługa kolumny w zależności od iteracji pętli edycji
 				{
@@ -66,7 +71,7 @@ void setTime(RTC_HandleTypeDef *hrtc, RTC_TimeTypeDef *sTime) // Ustawianie czas
 				}
 				showSettingUpTime(&position, *sTime); // Wyświetlenie czasu przy każdej zmianie wartości w kolumnie
 			}
-			else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_8) == 0) // Jeśli wciśnięty DOWN BUTTON
+			else if(DOWN_BUTTON == PRESSED)
 			{
 				switch(i)
 				{
@@ -109,9 +114,9 @@ void setDate(RTC_HandleTypeDef *hrtc, RTC_DateTypeDef *sDate) // Ustawienie daty
 	{
 		showSettingUpDate(&position, *sDate);
 		HAL_Delay(500);
-		while(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_15) == 1)
+		while(MIDDLE_BUTTON == RELEASED)
 		{
-			if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_6) == 0) //UP
+			if(UP_BUTTON == PRESSED)
 			{
 				switch(i)
 				{
@@ -130,7 +135,7 @@ void setDate(RTC_HandleTypeDef *hrtc, RTC_DateTypeDef *sDate) // Ustawienie daty
 				}
 				showSettingUpDate(&position, *sDate);
 			}
-			else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_8) == 0) //DOWN
+			else if(DOWN_BUTTON == PRESSED) //DOWN
 			{
 				switch(i)
 				{
@@ -156,22 +161,19 @@ void setDate(RTC_HandleTypeDef *hrtc, RTC_DateTypeDef *sDate) // Ustawienie daty
 	HAL_RTC_SetDate(hrtc, sDate, RTC_FORMAT_BIN);
 }
 
-
-void showAlarm(float temp, float hum, bool isSet)
+void showAlarm(float temp, float hum, bool isSet) // Pokaż ustawiony lub nieustawiony alarm
 {
 	lcd16x2_clear();
-	if(isSet)
+	if(isSet) // ustawiony
 	{
 		lcd16x2_printf("Alarm is set");
 		lcd16x2_2ndLine();
 		lcd16x2_printf("T:%.1fC H:%.1f%%",temp,hum);
 	}
-	else lcd16x2_printf("Alarm is not set");
-
-	while(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_15) == 1);
+	else lcd16x2_printf("Alarm is not set"); //nieustawiony
 }
 
-void showSettingUpAlarm(float temp, float hum, bool isSet)
+void showSettingUpAlarm(float temp, float hum, bool isSet) // Wyświetlanie ustawień alarmu przy edycji
 {
 	lcd16x2_clear();
 	lcd16x2_printf("Alarm:");
@@ -183,35 +185,35 @@ void showSettingUpAlarm(float temp, float hum, bool isSet)
 	lcd16x2_printf("T:%.1fC H:%.1f%%",temp,hum);
 }
 
-void setAlarm(float *temp, float *hum, bool *isSet)
+void setAlarm(float *temp, float *hum, bool *isSet) // Ustawienie alarmu
 {
 	showSettingUpAlarm(*temp, *hum, *isSet);
-	while(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_15) == 1)
+	while(MIDDLE_BUTTON == RELEASED) // Pierwsze ustawienie dotyczy tego czy ma być aktywowany alarm lub nie
 	{
-		if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_6) == 0 || HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_8) == 0)
+		if(UP_BUTTON == PRESSED || DOWN_BUTTON == PRESSED) // z każdym wciśnięciem przycisku góra lub dół
 		{
-			if(*isSet) *isSet = false;
-			else *isSet = true;
+			if(*isSet) *isSet = false; 	// zmień wartość
+			else *isSet = true;         // na przeciwną
 			showSettingUpAlarm(*temp, *hum, *isSet);
 		}
 		lcd16x2_setCursor(0,15);
 		lcd16x2_printf("<");
-		HAL_Delay(200);
+		HAL_Delay(150);
 	}
+
 	HAL_Delay(200);
-
-	if(*isSet == false) return;
-
+	if(*isSet == false) return; // Dodatkowy warunek który powraca do menu głównego dla przypadku gdy alarm jest ustawiony jako dezaktywowany
 	showSettingUpAlarm(*temp, *hum, *isSet);
-	while(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_15) == 1)
+
+	while(MIDDLE_BUTTON == RELEASED) // Drugie ustawienie dotyczy temperatury przy której alarm zostanie włączony
 	{
-		if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_6) == 0) //UP
+		if(UP_BUTTON == PRESSED)
 		{
-			if(*temp>=99) *temp=-99;
+			if(*temp>=99) *temp=-99; // Dodatkowy warunek nie pozwalający dozwolonych wartości
 			else *temp+=1;
 			showSettingUpAlarm(*temp, *hum, *isSet);
 		}
-		if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_8) == 0) //DOWN
+		if(DOWN_BUTTON == PRESSED)
 		{
 			if(*temp<=-99) *temp=99;
 			else *temp-=1;
@@ -219,18 +221,19 @@ void setAlarm(float *temp, float *hum, bool *isSet)
 		}
 		HAL_Delay(100);
 	}
-	HAL_Delay(200);
 
+	HAL_Delay(200);
 	showSettingUpAlarm(*temp, *hum, *isSet);
-	while(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_15) == 1)
+
+	while(MIDDLE_BUTTON == RELEASED) // Trzecie ustawienie dotyczy wilgotności powietrza przy której alarm zostanie włączony
 	{
-		if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_6) == 0) //UP
+		if(UP_BUTTON == PRESSED)
 		{
 			if(*hum>=99) *hum=0;
 			else *hum+=1;
 			showSettingUpAlarm(*temp, *hum, *isSet);
 		}
-		if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_8) == 0) //DOWN
+		if(DOWN_BUTTON == PRESSED)
 		{
 			if(*hum<=0) *hum=99;
 			else *hum-=1;
@@ -241,7 +244,56 @@ void setAlarm(float *temp, float *hum, bool *isSet)
 	HAL_Delay(200);
 }
 
-//void checkAlarm(float currTemp, float currHum, float alarmTemp, float alarmHum)
-//{
-//	if(currTemp >= alarmTemp || currHum >=)
-//}
+bool checkAlarm(DHT_DataTypedef *DHT11_Data, float alarmTemp, float alarmHum, bool alarmState) // Sprawdzanie statusu alarmu
+{
+	if(alarmState) // Jeśli alarm jest włączony (tj. urządzenie jest w statusie alarmu)
+	{
+		if(DHT11_Data->Temperature < alarmTemp && DHT11_Data->Humidity < alarmHum) // Jeśli temperatura oraz wiglotność spadły poniżej ustalonej granicy
+		{
+			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, 0); //
+			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, 0); // Dezaktywuj
+			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, 0); // diody
+			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, 0); //
+			return false; // Wyłącz alarm (tj. wyjdź ze statusu alarmu)
+		}
+		else return true; // Pozostaw alarm włączony (tj. pozostań w statusie alarmu)
+	}
+	else // Jeśli alarm jest wyłączony (tj. urządzenie nie jest w stanie alarmu)
+	{
+		if(DHT11_Data->Temperature >= alarmTemp || DHT11_Data->Humidity >= alarmHum) // Jeśli temperatura oraz wiglotność przekroczyły ustalone granice
+		{
+			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, 1); //
+			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, 1); // Aktywuj
+			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, 1); // diody
+			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, 1); //
+			lcd16x2_clear();
+			lcd16x2_printf("ALARM! Temp/Hum");  //
+			lcd16x2_2ndLine();					// Wyświetl komunikat o przekroczeniu ustalonych wartości
+			lcd16x2_printf("is too HIGH!");		//
+			HAL_Delay(3000);
+			return true; // Ustaw alarm na włączony (tj. ustaw urządzenie w tryb alarmu)
+		}
+	}
+	return false; // Pozostaw bez zmian
+}
+
+void showHistory(struct history alarmHistory[], int counter) // Pokaż historię alarmów
+{
+	lcd16x2_clear();
+	if(counter==0) 						    //
+	{										//
+		lcd16x2_printf("No alarms");		// Brak alarmów
+		HAL_Delay(200);						//
+		while(MIDDLE_BUTTON == RELEASED);	//
+	}
+	else // Gdy są alarmy w historii
+	{
+		for(int i=0;i<counter;i++)
+		{
+			lcd16x2_printf("%d: %02d.%02d.%02d", i+1, alarmHistory[i].hTime.Hours, alarmHistory[i].hTime.Minutes, alarmHistory[i].hTime.Seconds);
+			HAL_Delay(200);
+			while(MIDDLE_BUTTON == RELEASED);
+			lcd16x2_clear();
+		}
+	}
+}

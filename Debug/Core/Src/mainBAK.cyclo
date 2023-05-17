@@ -1,0 +1,6 @@
+mainBAK.c:77:5:main	11
+mainBAK.c:211:6:SystemClock_Config	3
+mainBAK.c:259:13:MX_RTC_Init	4
+mainBAK.c:322:13:MX_USART3_UART_Init	2
+mainBAK.c:355:13:MX_GPIO_Init	1
+mainBAK.c:413:6:Error_Handler	1

@@ -1,0 +1,6 @@
+../Core/Src/mainBAK.c:77:5:main	128	dynamic
+../Core/Src/mainBAK.c:211:6:SystemClock_Config	88	static
+../Core/Src/mainBAK.c:259:13:MX_RTC_Init	32	static
+../Core/Src/mainBAK.c:322:13:MX_USART3_UART_Init	8	static
+../Core/Src/mainBAK.c:355:13:MX_GPIO_Init	48	static
+../Core/Src/mainBAK.c:413:6:Error_Handler	4	static,ignoring_inline_asm

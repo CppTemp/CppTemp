@@ -3,13 +3,19 @@
 #include "string.h"
 #include "lcd16x2.h"
 
-void initMenu(struct option options[])
-{											  // Funkcja do inicjalizacji menu czyli
-	strcpy(options[0].name, "1. TEMP/HUM");   // przypisanie poszczególnym opcjom nazwy
-	strcpy(options[1].name, "2. TIME/DATE");  //
-	strcpy(options[2].name, "3. ALARM");      //
-	strcpy(options[3].name, "4. SET TIME");   // Ilość opcji można zmienić w
-	strcpy(options[4].name, "5. SET DATE");   // stałej numOfOptions w main.c
+#define MIDDLE_BUTTON HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_15)
+#define DOWN_BUTTON HAL_GPIO_ReadPin(GPIOC,GPIO_PIN_8)
+#define UP_BUTTON HAL_GPIO_ReadPin(GPIOC,GPIO_PIN_6)
+#define PRESSED 0
+#define RELEASED 1
+
+void initMenu(struct option options[])		  // Funkcja do inicjalizacji menu czyli
+{											  // przypisanie poszczególnym opcjom nazwy
+	strcpy(options[0].name, "1. TEMP/HUM");   //
+	strcpy(options[1].name, "2. TIME/DATE");  // Ilość opcji można zmienić w
+	strcpy(options[2].name, "3. ALARM");      // stałej numOfOptions w main.c
+	strcpy(options[3].name, "4. SET TIME");
+	strcpy(options[4].name, "5. SET DATE");
 	strcpy(options[5].name, "6. SET ALARM");
 	strcpy(options[6].name, "7. HISTORY");
 	strcpy(options[7].name, "8. CLR HISTORY");
@@ -19,7 +25,7 @@ int checkIfBack(int currState) // Funkcja sprawdzająca czy przycisk powrotu zos
 {
 	for(int i=0;i<20;i++)
 	{
-		if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_15) == 0)
+		if(MIDDLE_BUTTON == PRESSED)
 			return 1;
 		HAL_Delay(50);
 	}
@@ -53,21 +59,21 @@ void verifyPosition(int num, int *pos) // Weryfikacja pozycji X aby nie przekrac
 
 int action(int num, int *pos) // Funkcja do obsługi przycisków będąc w menu głównym
 {
-	if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_8) == 0) //DOWN
+	if(DOWN_BUTTON == PRESSED)
 	{
 		*pos+=1; // Przesuń pozycje X w dół
 		verifyPosition(num, pos);
 		HAL_Delay(100);
 		return 1;
 	}
-	else if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_6) == 0) //UP
+	else if(UP_BUTTON == PRESSED)
 	{
 		*pos-=1; // Przesuń pozycje X w górę
 		verifyPosition(num, pos);
 		HAL_Delay(100);
 		return 1;
 	}
-	else if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_15) == 0) //MIDDLE
+	else if(MIDDLE_BUTTON == PRESSED)
 	{
 		HAL_Delay(100);
 		return *pos+2; // Wybierz opcję pod pozycją X

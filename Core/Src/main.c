@@ -46,7 +46,6 @@
 
 /* Private variables ---------------------------------------------------------*/
 RTC_HandleTypeDef hrtc;
-UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
 
@@ -55,7 +54,6 @@ UART_HandleTypeDef huart3;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
-static void MX_USART3_UART_Init(void);
 static void MX_RTC_Init(void);
 /* USER CODE BEGIN PFP */
 
@@ -63,9 +61,8 @@ static void MX_RTC_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-DHT_DataTypedef DHT11_Data;
 RTC_HandleTypeDef hrtc;
-UART_HandleTypeDef huart3;
+DHT_DataTypedef DHT11_Data;
 RTC_TimeTypeDef sTime = {0};
 RTC_DateTypeDef sDate = {0};
 /* USER CODE END 0 */
@@ -78,14 +75,15 @@ int main(void)
 {
   /* USER CODE BEGIN 1 */
 	const int numOfOptions = 8;
-	char currTime[30];
-	char currDate[30];
 	float alarmTemp = 0;
 	float alarmHum = 0;
 	int state = 1;
 	int position = 0;
-	bool alarmSet = false;
+	int alarmCounter = 0;
+	bool alarmSet = false; // zmienna odpowiedzialna za aktywacje lub dezaktywacje alarmu     \ OBIE ZMIENNE REPREZENTUJĄ
+	bool alarmState = false; // zmienna pomocna która ustawia cały program w statusie alarmu  / CO INNEGO, NIE MYLIĆ ICH!
 	struct option options[numOfOptions];
+	struct history alarmHistory[20];
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -107,7 +105,6 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_USART3_UART_Init();
   MX_RTC_Init();
   /* USER CODE BEGIN 2 */
 
@@ -117,6 +114,25 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  DHT_GetData(&DHT11_Data);
+	  HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
+	  HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
+
+	  if(alarmState) alarmState = checkAlarm(&DHT11_Data, alarmTemp, alarmHum, true);
+	  else
+	  {
+		  if(alarmSet)
+			  if(checkAlarm(&DHT11_Data, alarmTemp, alarmHum, false))
+			  {
+				  alarmState = true;
+				  if(alarmCounter<20)
+				  {
+					  alarmHistory[alarmCounter].hTime = sTime;
+				  	  alarmCounter++;
+				  }
+				  state = 1;
+			  }
+	  }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -135,25 +151,20 @@ int main(void)
 	  }
 	  case 2: // Wyświetlenie temperatury oraz wilogtoności
 	  {
-		  DHT_GetData(&DHT11_Data);
-		  showTempAndHum(DHT11_Data.Temperature, DHT11_Data.Humidity);
+		  showTempAndHum(&DHT11_Data);
 		  state = checkIfBack(state);
 		  break;
 	  }
 	  case 3: // Wyświetlenie czasu oraz daty
 	  {
-		  HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
-		  HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
 		  showTimeAndDate(sDate, sTime);
-		  HAL_UART_Transmit(&huart3, (uint8_t *)currDate, sizeof(currDate), 300);
-		  HAL_UART_Transmit(&huart3, (uint8_t *)currTime, sizeof(currTime), 300);
 		  state = checkIfBack(state);
 		  break;
 	  }
 	  case 4: // Wyświetlenie alarmu
 	  {
 		  showAlarm(alarmTemp, alarmHum, alarmSet);
-		  state=1;
+		  state=checkIfBack(state);
 		  break;
 	  }
 	  case 5: // Ustawienie czasu
@@ -176,30 +187,29 @@ int main(void)
 	  }
 	  case 8: // Wyświetlenie historii
 	  {
-		  lcd16x2_clear();
-		  lcd16x2_printf("HISTORY");
-		  HAL_Delay(1000);
+		  showHistory(alarmHistory, alarmCounter);
 		  state=1;
 		  break;
 	  }
 	  case 9: // Wyczyszczenie historii
 	  {
+		  alarmCounter = 0;
 		  lcd16x2_clear();
-		  lcd16x2_printf("HISTORY");
-		  HAL_Delay(1000);
+		  lcd16x2_printf("History cleared!");
+		  w
 		  state=1;
 		  break;
 	  }
 	  default:
 	  {
-	  		  lcd16x2_clear();
-	  		  lcd16x2_printf("NO FUNCTION");
-	  		  HAL_Delay(1000);
-	  		  state=1;
-	  		  break;
+	  	  lcd16x2_clear();
+	  	  lcd16x2_printf("NO FUNCTION");
+	  	  HAL_Delay(1000);
+	  	  state=1;
+	  	  break;
 	  }
     }
-	HAL_Delay(100);
+	HAL_Delay(100); // Czasowy bufor przy zmianach statusów
   }
   /* USER CODE END 3 */
 }
@@ -315,39 +325,6 @@ static void MX_RTC_Init(void)
 }
 
 /**
-  * @brief USART3 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_USART3_UART_Init(void)
-{
-
-  /* USER CODE BEGIN USART3_Init 0 */
-
-  /* USER CODE END USART3_Init 0 */
-
-  /* USER CODE BEGIN USART3_Init 1 */
-
-  /* USER CODE END USART3_Init 1 */
-  huart3.Instance = USART3;
-  huart3.Init.BaudRate = 115200;
-  huart3.Init.WordLength = UART_WORDLENGTH_8B;
-  huart3.Init.StopBits = UART_STOPBITS_1;
-  huart3.Init.Parity = UART_PARITY_NONE;
-  huart3.Init.Mode = UART_MODE_TX_RX;
-  huart3.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-  huart3.Init.OverSampling = UART_OVERSAMPLING_16;
-  if (HAL_UART_Init(&huart3) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN USART3_Init 2 */
-
-  /* USER CODE END USART3_Init 2 */
-
-}
-
-/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -369,6 +346,9 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOE, GPIO_PIN_7|GPIO_PIN_10|GPIO_PIN_11|GPIO_PIN_12
                           |GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15, GPIO_PIN_RESET);
 
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15, GPIO_PIN_RESET);
+
   /*Configure GPIO pins : PE7 PE10 PE11 PE12
                            PE13 PE14 PE15 */
   GPIO_InitStruct.Pin = GPIO_PIN_7|GPIO_PIN_10|GPIO_PIN_11|GPIO_PIN_12
@@ -382,6 +362,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pin = GPIO_PIN_11;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PD12 PD13 PD14 PD15 */
+  GPIO_InitStruct.Pin = GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PC6 PC8 PC9 PC11 */
